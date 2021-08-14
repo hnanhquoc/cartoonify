@@ -2,8 +2,8 @@ import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, Activation
 from tensorflow.keras.models import Model
 
-from gan.layers import FlatConv, ConvBlock, ResBlock, UpSampleConv
-from gan.layers import get_padding, DownShuffleUnitV2, BasicShuffleUnitV2
+from gan.layers import UpSampleConv, ConvBlock, FlatConv, ResBlock
+from gan.layers import get_padding
 
 
 class Generator(Model):
@@ -14,28 +14,20 @@ class Generator(Model):
                  num_resblocks=8,
                  light=False):
         super(Generator, self).__init__(name="Generator")
-        if light:
-            downconv = DownShuffleUnitV2
-            resblock = BasicShuffleUnitV2
-            base_filters += 32
-            end_ksize = 5
-        else:
-            downconv = ConvBlock
-            resblock = ResBlock
-            end_ksize = 7
+        downconv = ConvBlock
+        resblock = ResBlock
+        end_ksize = 7
         upconv = UpSampleConv
         self.flat_conv1 = FlatConv(filters=base_filters,
                                    kernel_size=end_ksize,
                                    norm_type=norm_type,
                                    pad_type=pad_type)
-        self.down_conv1 = downconv(mid_filters=base_filters,
-                                   filters=base_filters * 2,
+        self.down_conv1 = downconv(filters=base_filters * 2,
                                    kernel_size=3,
                                    stride=2,
                                    norm_type=norm_type,
                                    pad_type=pad_type)
-        self.down_conv2 = downconv(mid_filters=base_filters,
-                                   filters=base_filters * 4,
+        self.down_conv2 = downconv(filters=base_filters * 4,
                                    kernel_size=3,
                                    stride=2,
                                    norm_type=norm_type,
@@ -44,13 +36,11 @@ class Generator(Model):
         self.up_conv1 = upconv(filters=base_filters * 2,
                                kernel_size=3,
                                norm_type=norm_type,
-                               pad_type=pad_type,
-                               light=light)
+                               pad_type=pad_type)
         self.up_conv2 = upconv(filters=base_filters,
                                kernel_size=3,
                                norm_type=norm_type,
-                               pad_type=pad_type,
-                               light=light)
+                               pad_type=pad_type)
 
         end_padding = (end_ksize - 1) // 2
         end_padding = (end_padding, end_padding)

@@ -4,4 +4,8 @@ dataset
 runs
 result
 models
+exported_models
 gan/__pycache__
+out
+training_checkpoints
+input_images

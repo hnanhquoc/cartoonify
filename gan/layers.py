@@ -1,9 +1,11 @@
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from tensorflow.keras.layers import Conv2D, BatchNormalization, Add
-from tensorflow.keras.layers import Layer, InputSpec, DepthwiseConv2D
-from tensorflow.keras.layers import ReLU, LeakyReLU, ZeroPadding2D
+from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.layers import Layer, InputSpec
+from tensorflow.keras.layers import ZeroPadding2D
 from tensorflow.keras.models import Model
+from tensorflow.python.keras import Model
+from tensorflow.python.keras.layers import Conv2D, ReLU, Add, LeakyReLU
 
 
 def channel_shuffle_2(x):
@@ -40,6 +42,7 @@ def get_padding(pad_type, padding):
         raise ValueError(f"Unrecognized pad_type {pad_type}")
 
 
+# TODO remove get norm
 def get_norm(norm_type):
     if norm_type == 'batch':
         return BatchNormalization()
@@ -47,90 +50,21 @@ def get_norm(norm_type):
         raise ValueError(f"Unrecognized norm_type {norm_type}")
 
 
-class FlatConv(Model):
+class UpSampleConv(Model):
     def __init__(self,
                  filters,
                  kernel_size,
                  norm_type="batch",
-                 pad_type="constant",
-                 **kwargs):
-        super(FlatConv, self).__init__(name="FlatConv")
-        padding = (kernel_size - 1) // 2
-        padding = (padding, padding)
-        self.model = tf.keras.models.Sequential()
-        self.model.add(get_padding(pad_type, padding))
-        self.model.add(Conv2D(filters, kernel_size))
-        self.model.add(get_norm(norm_type))
-        self.model.add(ReLU())
+                 pad_type="constant"):
+        super(UpSampleConv, self).__init__(name="UpSampleConv")
+        self.model = ConvBlock(filters, kernel_size, 1, norm_type, pad_type)
 
     def build(self, input_shape):
-        super(FlatConv, self).build(input_shape)
+        super(UpSampleConv, self).build(input_shape)
 
     def call(self, x, training=False):
+        x = tf.keras.backend.resize_images(x, 2, 2, "channels_last", 'bilinear')
         return self.model(x, training=training)
-
-
-class BasicShuffleUnitV2(Model):
-    def __init__(self,
-                 filters,  # NOTE: will be filters // 2
-                 norm_type="batch",
-                 pad_type="constant",
-                 **kwargs):
-        super(BasicShuffleUnitV2, self).__init__(name="BasicShuffleUnitV2")
-        filters //= 2
-        self.model = tf.keras.models.Sequential([
-            Conv2D(filters, 1, use_bias=False),
-            get_norm(norm_type),
-            ReLU(),
-            DepthwiseConv2D(3, padding='same', use_bias=False),
-            get_norm(norm_type),
-            Conv2D(filters, 1, use_bias=False),
-            get_norm(norm_type),
-            ReLU(),
-        ])
-
-    def build(self, input_shape):
-        super(BasicShuffleUnitV2, self).build(input_shape)
-
-    def call(self, x, training=False):
-        xl, xr = tf.split(x, 2, 3)
-        x = tf.concat((xl, self.model(xr)), 3)
-        return channel_shuffle_2(x)
-
-
-class DownShuffleUnitV2(Model):
-    def __init__(self,
-                 filters,  # NOTE: will be filters // 2
-                 norm_type="batch",
-                 pad_type="constant",
-                 **kwargs):
-        super(DownShuffleUnitV2, self).__init__(name="DownShuffleUnitV2")
-        filters //= 2
-        self.r_model = tf.keras.models.Sequential([
-            Conv2D(filters, 1, use_bias=False),
-            get_norm(norm_type),
-            ReLU(),
-            DepthwiseConv2D(3, 2, 'same', use_bias=False),
-            get_norm(norm_type),
-            Conv2D(filters, 1, use_bias=False),
-        ])
-        self.l_model = tf.keras.models.Sequential([
-            DepthwiseConv2D(3, 2, 'same', use_bias=False),
-            get_norm(norm_type),
-            Conv2D(filters, 1, use_bias=False),
-        ])
-        self.bn_act = tf.keras.models.Sequential([
-            get_norm(norm_type),
-            ReLU(),
-        ])
-
-    def build(self, input_shape):
-        super(DownShuffleUnitV2, self).build(input_shape)
-
-    def call(self, x, training=False):
-        x = tf.concat((self.l_model(x), self.r_model(x)), 3)
-        x = self.bn_act(x)
-        return channel_shuffle_2(x)
 
 
 class ConvBlock(Model):
@@ -139,8 +73,7 @@ class ConvBlock(Model):
                  kernel_size,
                  stride=1,
                  norm_type="batch",
-                 pad_type="constant",
-                 **kwargs):
+                 pad_type="constant"):
         super(ConvBlock, self).__init__(name="ConvBlock")
         padding = (kernel_size - 1) // 2
         padding = (padding, padding)
@@ -160,13 +93,34 @@ class ConvBlock(Model):
         return self.model(x, training=training)
 
 
+class FlatConv(Model):
+    def __init__(self,
+                 filters,
+                 kernel_size,
+                 norm_type="batch",
+                 pad_type="constant"):
+        super(FlatConv, self).__init__(name="FlatConv")
+        padding = (kernel_size - 1) // 2
+        padding = (padding, padding)
+        self.model = tf.keras.models.Sequential()
+        self.model.add(get_padding(pad_type, padding))
+        self.model.add(Conv2D(filters, kernel_size))
+        self.model.add(get_norm(norm_type))
+        self.model.add(ReLU())
+
+    def build(self, input_shape):
+        super(FlatConv, self).build(input_shape)
+
+    def call(self, x, training=False):
+        return self.model(x, training=training)
+
+
 class ResBlock(Model):
     def __init__(self,
                  filters,
                  kernel_size,
                  norm_type="batch",
-                 pad_type="constant",
-                 **kwargs):
+                 pad_type="constant"):
         super(ResBlock, self).__init__(name="ResBlock")
         padding = (kernel_size - 1) // 2
         padding = (padding, padding)
@@ -187,39 +141,12 @@ class ResBlock(Model):
         return self.add([self.model(x, training=training), x])
 
 
-class UpSampleConv(Model):
-    def __init__(self,
-                 filters,
-                 kernel_size,
-                 norm_type="batch",
-                 pad_type="constant",
-                 light=False,
-                 **kwargs):
-        super(UpSampleConv, self).__init__(name="UpSampleConv")
-        if light:
-            self.model = tf.keras.models.Sequential([
-                Conv2D(filters, 1),
-                BasicShuffleUnitV2(filters, norm_type, pad_type)
-            ])
-        else:
-            self.model = ConvBlock(
-                filters, kernel_size, 1, norm_type, pad_type)
-
-    def build(self, input_shape):
-        super(UpSampleConv, self).build(input_shape)
-
-    def call(self, x, training=False):
-        x = tf.keras.backend.resize_images(x, 2, 2, "channels_last", 'bilinear')
-        return self.model(x, training=training)
-
-
 class StridedConv(Model):
     def __init__(self,
                  filters=64,
                  lrelu_alpha=0.2,
                  pad_type="constant",
-                 norm_type="batch",
-                 **kwargs):
+                 norm_type="batch"):
         super(StridedConv, self).__init__(name="StridedConv")
 
         self.model = tf.keras.models.Sequential()
