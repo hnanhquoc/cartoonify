@@ -1,0 +1,7 @@
+.DS_Store
+.idea
+dataset
+runs
+result
+models
+gan/__pycache__
