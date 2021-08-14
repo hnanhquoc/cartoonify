@@ -1,17 +1,16 @@
-import os
+import cv2
 import gc
+import numpy as np
+import os
+import tensorflow as tf
 from glob import glob
 from itertools import product
 from random import choice
-
-import cv2
-import tensorflow as tf
-import numpy as np
 from tqdm import tqdm
 
-from util.logger import get_logger
-from gan.generator import Generator
 from gan.discriminator import Discriminator
+from gan.generator import Generator
+from util.logger import get_logger
 
 
 @tf.function
@@ -25,44 +24,44 @@ def gram(x):
 
 class Trainer:
     def __init__(
-        self,
-        dataset_name,
-        light,
-        source_domain,
-        target_domain,
-        gan_type,
-        epochs,
-        input_size,
-        multi_scale,
-        batch_size,
-        sample_size,
-        reporting_steps,
-        content_lambda,
-        style_lambda,
-        g_adv_lambda,
-        d_adv_lambda,
-        generator_lr,
-        discriminator_lr,
-        data_dir,
-        log_dir,
-        result_dir,
-        checkpoint_dir,
-        generator_checkpoint_prefix,
-        discriminator_checkpoint_prefix,
-        pretrain_checkpoint_prefix,
-        pretrain_model_dir,
-        model_dir,
-        disable_sampling,
-        ignore_vgg,
-        pretrain_learning_rate,
-        pretrain_epochs,
-        pretrain_saving_epochs,
-        pretrain_reporting_steps,
-        pretrain_generator_name,
-        generator_name,
-        discriminator_name,
-        debug,
-        **kwargs,
+            self,
+            dataset_name,
+            light,
+            source_domain,
+            target_domain,
+            gan_type,
+            epochs,
+            input_size,
+            multi_scale,
+            batch_size,
+            sample_size,
+            reporting_steps,
+            content_lambda,
+            style_lambda,
+            g_adv_lambda,
+            d_adv_lambda,
+            generator_lr,
+            discriminator_lr,
+            data_dir,
+            log_dir,
+            result_dir,
+            checkpoint_dir,
+            generator_checkpoint_prefix,
+            discriminator_checkpoint_prefix,
+            pretrain_checkpoint_prefix,
+            pretrain_model_dir,
+            model_dir,
+            disable_sampling,
+            ignore_vgg,
+            pretrain_learning_rate,
+            pretrain_epochs,
+            pretrain_saving_epochs,
+            pretrain_reporting_steps,
+            pretrain_generator_name,
+            generator_name,
+            discriminator_name,
+            debug,
+            **kwargs,
     ):
         os.environ['CUDA_VISIBLE_DEVICES'] = '0'
         os.environ["SM_FRAMEWORK"] = "tf.keras"
@@ -183,7 +182,7 @@ class Trainer:
         n, h, w, c = batch_x.shape
         out_arr = np.zeros([h * nrow, w * ncol, 3], dtype=np.uint8)
         for (i, j), k in zip(product(range(nrow), range(ncol)), range(n)):
-            out_arr[(h * i):(h * (i+1)), (w * j):(w * (j+1))] = batch_x[k]
+            out_arr[(h * i):(h * (i + 1)), (w * j):(w * (j + 1))] = batch_x[k]
         if not os.path.isdir(self.result_dir):
             os.makedirs(self.result_dir)
         cv2.imwrite(os.path.join(self.result_dir, image_name), out_arr)
@@ -229,7 +228,7 @@ class Trainer:
                 return self.image_processing(fname, True)
 
         ds = ds.map(fn).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-        steps = int(np.ceil(num_images/batch_size))
+        steps = int(np.ceil(num_images / batch_size))
         # user iter(ds) to avoid generating iterator every epoch
         return iter(ds), steps
 
@@ -383,11 +382,11 @@ class Trainer:
             with summary_writer.as_default():
                 img = np.expand_dims(self._save_generated_images(
                     tf.cast((real_batch + 1) * 127.5, tf.uint8),
-                    image_name="pretrain_sample_images.png"), 0,)
+                    image_name="pretrain_sample_images.png"), 0, )
                 tf.summary.image("pretrain_sample_images", img, step=0)
                 img = np.expand_dims(self._save_generated_images(
                     tf.cast((val_real_batch + 1) * 127.5, tf.uint8),
-                    image_name="pretrain_val_sample_images.png"), 0,)
+                    image_name="pretrain_val_sample_images.png"), 0, )
                 tf.summary.image("pretrain_val_sample_images", img, step=0)
             gc.collect()
         else:
@@ -419,10 +418,10 @@ class Trainer:
                             fake_batch = tf.cast(
                                 (generator(real_batch, training=False) + 1) * 127.5, tf.uint8)
                             img = np.expand_dims(self._save_generated_images(
-                                    fake_batch,
-                                    image_name=(f"pretrain_generated_images_at_epoch_{epoch_idx}"
-                                                f"_step_{step}.png")),
-                                    0,
+                                fake_batch,
+                                image_name=(f"pretrain_generated_images_at_epoch_{epoch_idx}"
+                                            f"_step_{step}.png")),
+                                0,
                             )
                             tf.summary.image('pretrain_generated_images', img, step=global_step)
                     self.content_loss_metric.reset_states()
@@ -431,10 +430,10 @@ class Trainer:
                     val_fake_batch = tf.cast(
                         (generator(val_real_batch, training=False) + 1) * 127.5, tf.uint8)
                     img = np.expand_dims(self._save_generated_images(
-                            val_fake_batch,
-                            image_name=("pretrain_val_generated_images_at_epoch_"
-                                        f"{epoch_idx}_step_{step}.png")),
-                            0,
+                        val_fake_batch,
+                        image_name=("pretrain_val_generated_images_at_epoch_"
+                                    f"{epoch_idx}_step_{step}.png")),
+                        0,
                     )
                     tf.summary.image('pretrain_val_generated_images', img, step=epoch)
 
@@ -557,11 +556,11 @@ class Trainer:
             with summary_writer.as_default():
                 img = np.expand_dims(self._save_generated_images(
                     tf.cast((real_batch + 1) * 127.5, tf.uint8),
-                    image_name="gan_sample_images.png"), 0,)
+                    image_name="gan_sample_images.png"), 0, )
                 tf.summary.image("gan_sample_images", img, step=0)
                 img = np.expand_dims(self._save_generated_images(
                     tf.cast((val_real_batch + 1) * 127.5, tf.uint8),
-                    image_name="gan_val_sample_images.png"), 0,)
+                    image_name="gan_val_sample_images.png"), 0, )
                 tf.summary.image("gan_val_sample_images", img, step=0)
             gc.collect()
         else:
@@ -581,8 +580,7 @@ class Trainer:
                     total=steps_per_epoch):
                 source_images, target_images, smooth_images = (
                     ds_source.next(), ds_target.next(), ds_smooth.next())
-                self.train_step(source_images, target_images, smooth_images,
-                                generator, d, g_optimizer, d_optimizer)
+                self.train_step(source_images, target_images, smooth_images, generator, d, g_optimizer, d_optimizer)
 
                 if step % self.reporting_steps == 0:
 
@@ -595,10 +593,10 @@ class Trainer:
                             fake_batch = tf.cast(
                                 (generator(real_batch, training=False) + 1) * 127.5, tf.uint8)
                             img = np.expand_dims(self._save_generated_images(
-                                    fake_batch,
-                                    image_name=("gan_generated_images_at_epoch_"
-                                                f"{epoch_idx}_step_{step}.png")),
-                                    0,
+                                fake_batch,
+                                image_name=("gan_generated_images_at_epoch_"
+                                            f"{epoch_idx}_step_{step}.png")),
+                                0,
                             )
                             tf.summary.image('gan_generated_images', img, step=global_step)
 
@@ -610,10 +608,10 @@ class Trainer:
                     val_fake_batch = tf.cast(
                         (generator(val_real_batch, training=False) + 1) * 127.5, tf.uint8)
                     img = np.expand_dims(self._save_generated_images(
-                            val_fake_batch,
-                            image_name=("gan_val_generated_images_at_epoch_"
-                                        f"{epoch_idx}_step_{step}.png")),
-                            0,
+                        val_fake_batch,
+                        image_name=("gan_val_generated_images_at_epoch_"
+                                    f"{epoch_idx}_step_{step}.png")),
+                        0,
                     )
                     tf.summary.image('gan_val_generated_images', img, step=epoch)
             self.logger.info(f"Saving checkpoints after epoch {epoch_idx} ended...")
@@ -644,13 +642,13 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", type=str, default="full",
+    parser.add_argument("--mode", type=str, default="gan",
                         choices=["full", "pretrain", "gan"])
     parser.add_argument("--dataset_name", type=str, default="animeGAN")
     parser.add_argument("--light", action="store_true")
     parser.add_argument("--input_size", type=int, default=256)
     parser.add_argument("--multi_scale", action="store_true")
-    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--sample_size", type=int, default=8)
     parser.add_argument("--source_domain", type=str, default="A")
     parser.add_argument("--target_domain", type=str, default="B")

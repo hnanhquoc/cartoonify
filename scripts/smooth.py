@@ -2,9 +2,9 @@
 credit to https://github.com/taki0112/CartoonGAN-Tensorflow/blob/master/edge_smooth.py
 LICENSE for this script: https://github.com/taki0112/CartoonGAN-Tensorflow/blob/master/LICENSE
 """
-import os
-import numpy as np
 import cv2
+import numpy as np
+import os
 from glob import glob
 from tqdm import tqdm
 
@@ -51,6 +51,7 @@ def main(path):
 
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, help='path to your dataset')
     args = parser.parse_args()

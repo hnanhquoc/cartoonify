@@ -1,5 +1,5 @@
-import sys
 import logging
+import sys
 
 
 def get_logger(name, log_file=None, debug=False):

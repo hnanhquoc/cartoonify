@@ -1,9 +1,9 @@
 import os
-from subprocess import Popen
 import tensorflow as tf
+from subprocess import Popen
+
 from gan.generator import Generator
 from logger import get_logger
-
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 tf.get_logger().setLevel(40)
@@ -49,6 +49,7 @@ def main(m_path, out_dir, light):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--m_path", type=str, default='models')
     parser.add_argument("--out_dir", type=str, default='exported_models')

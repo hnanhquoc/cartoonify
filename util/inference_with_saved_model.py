@@ -1,13 +1,13 @@
 """
 Minimum inference code
 """
-import os
 import numpy as np
-from imageio import imwrite
-from PIL import Image
+import os
 import tensorflow as tf
-from util.logger import get_logger
+from PIL import Image
+from imageio import imwrite
 
+from util.logger import get_logger
 
 # NOTE: TF warnings are too noisy without this
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -34,6 +34,7 @@ def main(m_path, img_path, out_dir):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--m_path", type=str,
                         default=os.path.join("exported_models", "SavedModelLight_0000"))

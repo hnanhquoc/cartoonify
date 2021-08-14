@@ -1,9 +1,9 @@
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Layer, InputSpec, DepthwiseConv2D
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Add
+from tensorflow.keras.layers import Layer, InputSpec, DepthwiseConv2D
 from tensorflow.keras.layers import ReLU, LeakyReLU, ZeroPadding2D
+from tensorflow.keras.models import Model
 
 
 def channel_shuffle_2(x):

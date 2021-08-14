@@ -1,6 +1,7 @@
 import tensorflow as tf
-from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Conv2D, Activation
+from tensorflow.keras.models import Model
+
 from gan.layers import FlatConv, ConvBlock, ResBlock, UpSampleConv
 from gan.layers import get_padding, DownShuffleUnitV2, BasicShuffleUnitV2
 
@@ -79,6 +80,7 @@ class Generator(Model):
 
 if __name__ == "__main__":
     import numpy as np
+
     f = 3
     k = 3
     s = (1, 64, 64, 3)
