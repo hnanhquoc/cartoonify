@@ -1,1 +1,4 @@
 IMG_SIZE = 256
+
+DATA_DIR = 'dataset'
+BATCH_SIZE = 8

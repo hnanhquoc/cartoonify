@@ -1,17 +1,20 @@
 # Processing functions using Tensorflow
-import gc
 import os
 from glob import glob
 from itertools import product
-from random import choice
 
 import cv2
-import numpy
+import numpy as np
 import tensorflow as tf
+
+from util.contants import IMG_SIZE, DATA_DIR
 
 
 def load(path):
-    """Load, decode paths into images and cast them into float32
+    """
+    Load, decode paths into images and cast them into float32
+    :param path: path to the image
+    :return: an image vector.
     """
     image = tf.io.read_file(path)
     image = tf.io.decode_jpeg(image)
@@ -20,15 +23,22 @@ def load(path):
 
 
 def normalize(image):
-    """ Cast to float32 and
-        Normalize the images to [-1, 1]
+    """
+    Cast to float32 and Normalize the images to [-1, 1]
+    :param image:
+    :return:
     """
     image = (image / 127.5) - 1
     return image
 
 
 def resize(image, height, width):
-    """ Resize the two image to heigh, width
+    """
+    Resize the two image to height, width
+    :param image:
+    :param height:
+    :param width:
+    :return:
     """
     image = tf.image.resize(image,
                             [height, width],
@@ -37,24 +47,49 @@ def resize(image, height, width):
 
 
 def random_crop(image, height, width):
-    """ Crop image
     """
-    cropped_image = tf.image.random_crop(image, size=[height, width, 3])
+    Crop image
+    :param image:
+    :param height:
+    :param width:
+    :return:
+    """
+    return tf.image.random_crop(image, size=[height, width, 3])
 
-    return cropped_image[0], cropped_image[1]
+
+@tf.function
+def image_processing(x, is_train=True):
+    """
+    Preprocess the image.
+    :param x: target image.
+    :param is_train: is training?
+    :return: a processed image.
+    """
+    crop_size = IMG_SIZE
+    if is_train:
+        sizes = tf.cast(crop_size * tf.random.uniform([2], 0.9, 1.1), tf.int32)
+        shape = tf.shape(x)[:2]
+        sizes = tf.minimum(sizes, shape)
+        # Adding random noise to the image.
+        x = random_crop(x, sizes[0], sizes[1])
+        x = tf.image.random_flip_left_right(x)
+    x = resize(x, crop_size, crop_size)
+
+    return normalize(x)
 
 
-@tf.function()
-def random_jitter(draw, height, width, crop_height, crop_width):
-    draw = resize(draw, height, width)
-    draw, original = random_crop(draw, crop_height, crop_width)
+def get_dataset(dataset_name, domain, _type, batch_size):
+    files = glob(os.path.join(DATA_DIR, dataset_name, f"{_type}{domain}", "*"))
+    num_images = len(files)
+    print(f"Found {num_images} domain{domain} images in {_type}{domain} folder.")
 
-    # Augmentation to random flip
-    if tf.random.uniform(()) > 0.5:
-        draw = tf.image.flip_left_right(draw)
-        original = tf.image.flip_left_right(original)
+    ds = tf.data.Dataset.from_tensor_slices(files)
+    ds = ds.shuffle(buffer_size=400).repeat(num_images)
 
-    return draw
+    ds = ds.map(image_processing, num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(batch_size)
+    steps = int(np.ceil(num_images / batch_size))
+    # user iter(ds) to avoid generating iterator every epoch
+    return iter(ds), steps
 
 
 def _save_generated_images(result_dir, batch_x, image_name, nrow=2, ncol=4):
@@ -68,59 +103,22 @@ def _save_generated_images(result_dir, batch_x, image_name, nrow=2, ncol=4):
     if not os.path.isdir(result_dir):
         os.makedirs(result_dir)
     cv2.imwrite(os.path.join(result_dir, image_name), out_arr)
-    gc.collect()
+    # gc.collect()
     return out_arr
 
 
 @tf.function
 def gram(x):
+    """
+    Gram matrix.
+    If the vectors v_1, v_2, ..., v_n are real and the columns of matrix X,
+    then the Gram matrix is X^TX.
+    :param x: an image.
+    :return: a matrix.
+    """
     shape_x = tf.shape(x)
     b = shape_x[0]
     c = shape_x[3]
     x = tf.reshape(x, [b, -1, c])
     return tf.matmul(tf.transpose(x, [0, 2, 1]), x) / tf.cast((tf.size(x) // b), tf.float32)
 
-
-@tf.function
-def random_resize(image):
-    size = choice([IMG_SIZE - 32, IMG_SIZE, IMG_SIZE + 32])
-    return resize(image, (size, size))
-
-
-@tf.function
-def image_processing(self, filename, is_train=True):
-    crop_size = self.input_size
-    if self.multi_scale and is_train:
-        crop_size += 32
-    x = tf.io.read_file(filename)
-    x = tf.image.decode_jpeg(x, channels=3)
-    if is_train:
-        sizes = tf.cast(
-            crop_size * tf.random.uniform([2], 0.9, 1.1), tf.int32)
-        shape = tf.shape(x)[:2]
-        sizes = tf.minimum(sizes, shape)
-        x = tf.image.random_crop(x, (sizes[0], sizes[1], 3))
-        x = tf.image.random_flip_left_right(x)
-    x = tf.image.resize(x, (crop_size, crop_size))
-    img = tf.cast(x, tf.float32) / 127.5 - 1
-    return img
-
-def get_dataset(self, dataset_name, domain, _type, batch_size):
-    files = glob(os.path.join(self.data_dir, dataset_name, f"{_type}{domain}", "*"))
-    num_images = len(files)
-    self.logger.info(
-        f"Found {num_images} domain{domain} images in {_type}{domain} folder."
-    )
-    ds = tf.data.Dataset.from_tensor_slices(files)
-    ds = ds.shuffle(buffer_size=400).repeat(num_images)
-
-    def fn(fname):
-        if self.multi_scale:
-            return self.random_resize(self.image_processing(fname, True))
-        else:
-            return self.image_processing(fname, True)
-
-    ds = ds.map(fn).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-    steps = int(np.ceil(num_images / batch_size))
-    # user iter(ds) to avoid generating iterator every epoch
-    return iter(ds), steps

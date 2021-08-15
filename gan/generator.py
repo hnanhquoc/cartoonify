@@ -1,104 +1,49 @@
+# The generator network  𝐺  begins with a flat convolution stage followed by two down-convolution blocks
+# to spatially compress and encode the images.
+#
+# Afterwards, eight residual blocks with identical layout are used to construct the content and manifold feature.
+#
+# Finally, the output cartoon style images are reconstructed by two up-convolution blocks.
 import tensorflow as tf
-from tensorflow.keras.layers import Conv2D, Activation
-from tensorflow.keras.models import Model
+from keras.layers import ZeroPadding2D
+from tensorflow.keras.layers import Conv2D
 
-from gan.layers import UpSampleConv, ConvBlock, FlatConv, ResBlock
-from gan.layers import get_padding
-
-
-class Generator(Model):
-    def __init__(self,
-                 norm_type="batch",
-                 pad_type="constant",
-                 base_filters=64,
-                 num_resblocks=8,
-                 light=False):
-        super(Generator, self).__init__(name="Generator")
-        downconv = ConvBlock
-        resblock = ResBlock
-        end_ksize = 7
-        upconv = UpSampleConv
-        self.flat_conv1 = FlatConv(filters=base_filters,
-                                   kernel_size=end_ksize,
-                                   norm_type=norm_type,
-                                   pad_type=pad_type)
-        self.down_conv1 = downconv(filters=base_filters * 2,
-                                   kernel_size=3,
-                                   stride=2,
-                                   norm_type=norm_type,
-                                   pad_type=pad_type)
-        self.down_conv2 = downconv(filters=base_filters * 4,
-                                   kernel_size=3,
-                                   stride=2,
-                                   norm_type=norm_type,
-                                   pad_type=pad_type)
-        self.residual_blocks = resblock(filters=base_filters * 4, kernel_size=3)
-        self.up_conv1 = upconv(filters=base_filters * 2,
-                               kernel_size=3,
-                               norm_type=norm_type,
-                               pad_type=pad_type)
-        self.up_conv2 = upconv(filters=base_filters,
-                               kernel_size=3,
-                               norm_type=norm_type,
-                               pad_type=pad_type)
-
-        end_padding = (end_ksize - 1) // 2
-        end_padding = (end_padding, end_padding)
-        self.final_conv = tf.keras.models.Sequential([
-            get_padding(pad_type, end_padding),
-            Conv2D(3, end_ksize)])
-        self.final_act = Activation("tanh")
-
-    def build(self, input_shape):
-        super(Generator, self).build(input_shape)
-
-    def call(self, x, training=False):
-        x = self.flat_conv1(x, training=training)
-        x = self.down_conv1(x, training=training)
-        x = self.down_conv2(x, training=training)
-        for _ in range(8):
-            x = self.residual_blocks(x, training=training)
-        x = self.up_conv1(x, training=training)
-        x = self.up_conv2(x, training=training)
-        x = self.final_conv(x)
-        x = self.final_act(x)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return tf.TensorShape(input_shape)
+from gan.layers import base_block, residual_block
+from util.contants import IMG_SIZE
 
 
-if __name__ == "__main__":
-    import numpy as np
+def generator(base_filters=64):
+    inputs = tf.keras.layers.Input(shape=[IMG_SIZE, IMG_SIZE, 3])
+    end_kernel_size = 7
+    end_padding = (end_kernel_size - 1) // 2
+    end_padding = (end_padding, end_padding)
 
-    f = 3
-    k = 3
-    s = (1, 64, 64, 3)
-    nx = np.random.rand(*s).astype(np.float32)
-
-    custom_layers = [
-        FlatConv(f, k),
-        ConvBlock(f, k),
-        ResBlock(f, k),
-        UpSampleConv(f, k)
+    architect = [
+        # Flat Convolution
+        base_block(filters=base_filters, kernel_size=end_kernel_size),
+        # Down Convolution
+        base_block(filters=base_filters*2, kernel_size=3, stride_1=2, stride_2=1),
+        base_block(filters=base_filters*4, kernel_size=3, stride_1=2, stride_2=1),
+        # Residual Blocks
+        residual_block(filters=base_filters*4, kernel_size=3),
+        residual_block(filters=base_filters*4, kernel_size=3),
+        residual_block(filters=base_filters*4, kernel_size=3),
+        residual_block(filters=base_filters*4, kernel_size=3),
+        residual_block(filters=base_filters*4, kernel_size=3),
+        residual_block(filters=base_filters*4, kernel_size=3),
+        residual_block(filters=base_filters*4, kernel_size=3),
+        residual_block(filters=base_filters*4, kernel_size=3),
+        # Up Convolution
+        base_block(filters=base_filters * 2, kernel_size=3, stride_1=0.5, stride_2=1),
+        base_block(filters=base_filters, kernel_size=3, stride_1=0.5, stride_2=1),
+        # Final Convolution
+        ZeroPadding2D(end_padding),
+        Conv2D(filters=3, kernel_size=end_kernel_size, activation="tanh")
     ]
 
-    for layer in custom_layers:
-        tf.keras.backend.clear_session()
-        out = layer(nx)
+    x = inputs
+    for layer in architect:
         layer.summary()
-        print(f"Input  Shape: {nx.shape}")
-        print(f"Output Shape: {out.shape}")
-        print("\n" * 2)
+        x = layer(x)
 
-    tf.keras.backend.clear_session()
-    g = Generator()
-    shape = (1, 256, 256, 3)
-    nx = np.random.rand(*shape).astype(np.float32)
-    t = tf.keras.Input(shape=nx.shape[1:], batch_size=nx.shape[0])
-    out = g(t, training=False)
-    g.summary()
-    print(f"Input  Shape: {nx.shape}")
-    print(f"Output Shape: {out.shape}")
-    assert out.shape == shape, "Output shape doesn't match input shape"
-    print("Generator's output shape is exactly the same as shape of input.")
+    return tf.keras.Model(inputs=inputs, outputs=x)
