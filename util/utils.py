@@ -2,6 +2,8 @@
 import os
 from glob import glob
 from itertools import product
+from tensorflow.keras.applications import VGG19
+from tensorflow.keras.layers import Conv2D
 
 import cv2
 import numpy as np
@@ -58,13 +60,14 @@ def random_crop(image, height, width):
 
 
 @tf.function
-def image_processing(x, is_train=True):
+def image_processing(path, is_train=True):
     """
     Preprocess the image.
-    :param x: target image.
+    :param path: target image path.
     :param is_train: is training?
     :return: a processed image.
     """
+    x = load(path)
     crop_size = IMG_SIZE
     if is_train:
         sizes = tf.cast(crop_size * tf.random.uniform([2], 0.9, 1.1), tf.int32)
@@ -92,7 +95,23 @@ def get_dataset(dataset_name, domain, _type, batch_size):
     return iter(ds), steps
 
 
-def _save_generated_images(result_dir, batch_x, image_name, nrow=2, ncol=4):
+def load_vgg19(input_size=IMG_SIZE):
+    print("Setting up VGG19 for computing content loss...")
+
+    input_shape = (input_size, input_size, 3)
+    # download model using kwarg weights="imagenet"
+    base_model = VGG19(weights="imagenet", include_top=False, input_shape=input_shape)
+    tmp_vgg_output = base_model.get_layer("block4_conv3").output
+    tmp_vgg_output = Conv2D(512, (3, 3), activation='linear', padding='same',
+                            name='block4_conv4')(tmp_vgg_output)
+    vgg = tf.keras.Model(inputs=base_model.input, outputs=tmp_vgg_output)
+    vgg.load_weights(os.path.expanduser(os.path.join(
+        "~", ".keras", "models", "vgg19_weights_tf_dim_ordering_tf_kernels_notop.h5")), by_name=True)
+
+    return vgg
+
+
+def save_image(result_dir, batch_x, image_name, nrow=2, ncol=4):
     # NOTE: 0 <= batch_x <= 1, float32, numpy.ndarray
     if not isinstance(batch_x, np.ndarray):
         batch_x = batch_x.numpy()

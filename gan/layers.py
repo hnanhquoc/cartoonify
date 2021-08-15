@@ -1,9 +1,4 @@
 import tensorflow as tf
-from keras.layers import ReLU, Dropout, Add
-from tensorflow.keras.layers import BatchNormalization, ZeroPadding2D
-from tensorflow.python.keras.layers import Conv2D, LeakyReLU
-
-
 # def channel_shuffle_2(x):
 #     dyn_shape = tf.shape(x)
 #     h, w = dyn_shape[1], dyn_shape[2]
@@ -12,21 +7,24 @@ from tensorflow.python.keras.layers import Conv2D, LeakyReLU
 #     x = K.permute_dimensions(x, [0, 1, 2, 4, 3])
 #     x = K.reshape(x, [-1, h, w, c])
 #     return x
+from tensorflow import pad
+from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import ReLU, Dropout, Add, BatchNormalization, ZeroPadding2D
 
 
-# class ReflectionPadding2D(Layer):
-#     def __init__(self, padding=(1, 1), **kwargs):
-#         super(ReflectionPadding2D, self).__init__(**kwargs)
-#         padding = tuple(padding)
-#         self.padding = ((0, 0), padding, padding, (0, 0))
-#         self.input_spec = [InputSpec(ndim=4)]
-#
-#     def compute_output_shape(self, s):
-#         """ If you are using "channels_last" configuration"""
-#         return s[0], s[1] + 2 * self.padding[0], s[2] + 2 * self.padding[1], s[3]
-#
-#     def call(self, x):
-#         return tf.pad(x, self.padding, "REFLECT")
+class ReflectionPadding2D(Layer):
+    def __init__(self, padding=(1, 1), **kwargs):
+        self.padding = tuple(padding)
+        super(ReflectionPadding2D, self).__init__(**kwargs)
+
+    def compute_output_shape(self, input_shape):
+        return (
+            input_shape[0], input_shape[1] + 2 * self.padding[0], input_shape[2] + 2 * self.padding[1], input_shape[3])
+
+    def call(self, input_tensor, mask=None):
+        padding_width, padding_height = self.padding
+        return pad(input_tensor, [[0, 0], [padding_height, padding_height], [padding_width, padding_width], [0, 0]],
+                   'REFLECT')
 
 
 # def get_padding(pad_type, padding):
@@ -158,6 +156,8 @@ from tensorflow.python.keras.layers import Conv2D, LeakyReLU
 #
 #     def call(self, x, training=False):
 #         return self.model(x, training=training)
+from tensorflow.python.keras.layers import Conv2D, LeakyReLU
+
 
 def base_block(filters, kernel_size,
                stride_1=1,
@@ -166,7 +166,6 @@ def base_block(filters, kernel_size,
                dropout=0,
                apply_relu=True,
                leaky_relu_alpha=0):
-    # initializer = tf.random_normal_initializer(0., 0.02)
     padding = (kernel_size - 1) // 2
     padding = (padding, padding)
 
@@ -185,10 +184,10 @@ def base_block(filters, kernel_size,
     if dropout > 0:
         result.add(Dropout(dropout))
 
-    if apply_relu:
-        result.add(ReLU())
-    elif leaky_relu_alpha > 0:
+    if leaky_relu_alpha > 0:
         result.add(LeakyReLU(leaky_relu_alpha))
+    elif apply_relu:
+        result.add(ReLU())
 
     return result
 
@@ -209,3 +208,18 @@ def residual_block(filters, kernel_size):
     result.add = Add()
 
     return result
+
+
+def stride_block(filters, kernel_size,
+                 stride_1=2,
+                 stride_2=1,
+                 leaky_relu_alpha=0):
+    return tf.keras.Sequential([
+        ReflectionPadding2D(),
+        Conv2D(filters, kernel_size, strides=stride_1),
+        LeakyReLU(leaky_relu_alpha),
+        ReflectionPadding2D(),
+        Conv2D(filters * 2, kernel_size, strides=stride_2),
+        BatchNormalization(),
+        LeakyReLU(leaky_relu_alpha),
+    ])

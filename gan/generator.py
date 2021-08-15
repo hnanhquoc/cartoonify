@@ -5,11 +5,12 @@
 #
 # Finally, the output cartoon style images are reconstructed by two up-convolution blocks.
 import tensorflow as tf
-from keras.layers import ZeroPadding2D
 from tensorflow.keras.layers import Conv2D
+from tensorflow.python.keras.losses import MeanAbsoluteError, BinaryCrossentropy
 
 from gan.layers import base_block, residual_block
 from util.contants import IMG_SIZE
+from util.utils import gram
 
 
 def generator(base_filters=64):
@@ -18,32 +19,37 @@ def generator(base_filters=64):
     end_padding = (end_kernel_size - 1) // 2
     end_padding = (end_padding, end_padding)
 
-    architect = [
+    down_stack = [
         # Flat Convolution
         base_block(filters=base_filters, kernel_size=end_kernel_size),
         # Down Convolution
-        base_block(filters=base_filters*2, kernel_size=3, stride_1=2, stride_2=1),
-        base_block(filters=base_filters*4, kernel_size=3, stride_1=2, stride_2=1),
+        base_block(filters=base_filters * 2, kernel_size=3, stride_1=2, stride_2=1),
+        base_block(filters=base_filters * 4, kernel_size=3, stride_1=2, stride_2=1),
         # Residual Blocks
-        residual_block(filters=base_filters*4, kernel_size=3),
-        residual_block(filters=base_filters*4, kernel_size=3),
-        residual_block(filters=base_filters*4, kernel_size=3),
-        residual_block(filters=base_filters*4, kernel_size=3),
-        residual_block(filters=base_filters*4, kernel_size=3),
-        residual_block(filters=base_filters*4, kernel_size=3),
-        residual_block(filters=base_filters*4, kernel_size=3),
-        residual_block(filters=base_filters*4, kernel_size=3),
-        # Up Convolution
-        base_block(filters=base_filters * 2, kernel_size=3, stride_1=0.5, stride_2=1),
-        base_block(filters=base_filters, kernel_size=3, stride_1=0.5, stride_2=1),
-        # Final Convolution
-        ZeroPadding2D(end_padding),
-        Conv2D(filters=3, kernel_size=end_kernel_size, activation="tanh")
+        residual_block(filters=base_filters * 4, kernel_size=3),
+        residual_block(filters=base_filters * 4, kernel_size=3),
+        residual_block(filters=base_filters * 4, kernel_size=3),
+        residual_block(filters=base_filters * 4, kernel_size=3),
+        residual_block(filters=base_filters * 4, kernel_size=3),
+        residual_block(filters=base_filters * 4, kernel_size=3),
+        residual_block(filters=base_filters * 4, kernel_size=3),
+        residual_block(filters=base_filters * 4, kernel_size=3),
     ]
 
     x = inputs
-    for layer in architect:
-        layer.summary()
-        x = layer(x)
+    for down in down_stack:
+        x = down(x)
 
-    return tf.keras.Model(inputs=inputs, outputs=x)
+    up_stack = [
+        # Up Convolution
+        base_block(filters=base_filters * 2, kernel_size=3, stride_2=1),
+        base_block(filters=base_filters, kernel_size=3, stride_2=1),
+    ]
+    for up in up_stack:
+        x = tf.keras.backend.resize_images(x, 2, 2, "channels_last", 'bilinear')
+        x = up(x)
+
+    last = Conv2D(filters=3, kernel_size=end_kernel_size, padding="same", activation="tanh")
+
+    return tf.keras.Model(inputs=inputs, outputs=last(x))
+

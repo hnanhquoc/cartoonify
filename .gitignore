@@ -2,7 +2,8 @@
 .idea
 dataset
 runs
-result
+logs
+results
 models
 exported_models
 gan/__pycache__
