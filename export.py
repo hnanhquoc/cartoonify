@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 from subprocess import Popen
 
-from gan.generator import Generator
+from gan.generator import generator
 from util.logger import get_logger
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -12,10 +12,8 @@ tf.get_logger().setLevel(40)
 def main(m_path, out_dir, light):
     logger = get_logger("export")
     try:
-        g = Generator(light=light)
+        g = generator(input_size=None, batch_size=None)
         g.load_weights(tf.train.latest_checkpoint(m_path))
-        t = tf.keras.Input(shape=[None, None, 3], batch_size=None)
-        g(t, training=False)
         g.summary()
     except ValueError as e:
         logger.error(e)
@@ -26,16 +24,12 @@ def main(m_path, out_dir, light):
         exit(1)
     m_num = 0
     smd = os.path.join(out_dir, "SavedModel")
-    tfmd = os.path.join(out_dir, "tfjs_model")
     if light:
         smd += "Light"
-        tfmd += "_light"
     saved_model_dir = f"{smd}_{m_num:04d}"
-    tfjs_model_dir = f"{tfmd}_{m_num:04d}"
     while os.path.exists(saved_model_dir):
         m_num += 1
         saved_model_dir = f"{smd}_{m_num:04d}"
-        tfjs_model_dir = f"{tfmd}_{m_num:04d}"
     tf.saved_model.save(g, saved_model_dir)
     # cmd = ['tensorflowjs_converter', '--input_format', 'tf_saved_model',
     #        '--output_format', 'tfjs_graph_model', saved_model_dir, tfjs_model_dir]

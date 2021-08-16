@@ -13,8 +13,8 @@ from util.contants import IMG_SIZE, BATCH_SIZE
 from util.utils import gram
 
 
-def generator(base_filters=64):
-    inputs = tf.keras.layers.Input(shape=[IMG_SIZE, IMG_SIZE, 3], batch_size=BATCH_SIZE)
+def generator(base_filters=64, input_size=IMG_SIZE, batch_size=BATCH_SIZE):
+    inputs = tf.keras.layers.Input(shape=[input_size, input_size, 3], batch_size=batch_size)
     end_kernel_size = 7
     end_padding = (end_kernel_size - 1) // 2
     end_padding = (end_padding, end_padding)

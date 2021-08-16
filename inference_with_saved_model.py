@@ -6,10 +6,13 @@ import numpy as np
 import os
 import tensorflow as tf
 from PIL import Image
+from imageio import imwrite
 
 from util.logger import get_logger
 
 # NOTE: TF warnings are too noisy without this
+from util.utils import load, resize
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 tf.get_logger().setLevel(40)
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -22,14 +25,14 @@ def main(m_path, img_path, out_dir):
     f = imported.signatures["serving_default"]
     img = np.array(Image.open(img_path).convert("RGB"))
     img = np.expand_dims(img, 0).astype(np.float32) / 127.5 - 1
-    out = f(tf.constant(img))['output_1']
+    out = f(tf.constant(img))['conv2d_25']
     out = ((out.numpy().squeeze() + 1) * 127.5).astype(np.uint8)
     if out_dir != "" and not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     if out_dir == "":
         out_dir = "util"
     out_path = os.path.join(out_dir, os.path.split(img_path)[1])
-    cv2.imwrite(out_path, out)
+    imwrite(out_path, out)
     logger.info(f"generated image saved to {out_path}")
 
 
