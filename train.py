@@ -122,9 +122,9 @@ class Trainer:
         with tf.GradientTape() as g_tape, tf.GradientTape() as d_tape:
             generated_images = g(source_images)
 
-            real_output = d([source_images, target_images])
-            fake_output = d([source_images, generated_images])
-            smooth_out = d([source_images, smooth_images])
+            real_output = d(target_images)
+            fake_output = d(generated_images)
+            smooth_out = d(smooth_images)
             d_real_loss, d_fake_loss, d_smooth_loss, d_total_loss = \
                 self.discriminator_loss(real_output, fake_output, smooth_out)
 
@@ -196,8 +196,9 @@ class Trainer:
             epochs = PRETRAIN_EPOCHS
 
         val_files = glob(os.path.join(DATA_DIR, self.dataset_name, f"test{SOURCE_DOMAIN}", "*"))
-        val_real_batch = tf.nest.map_structure(tf.stop_gradient, tf.map_fn(lambda fname: image_processing(fname, False),
-                                                                           tf.constant(val_files), tf.float32))
+        val_real_batch = tf.map_fn(
+            lambda fname: image_processing(fname, False),
+            tf.constant(val_files), tf.float32, back_prop=False)
         real_batch = next(dataset)
         while real_batch.shape[0] < SAMPLE_SIZE:
             real_batch = tf.concat((real_batch, next(dataset)), 0)
@@ -324,8 +325,9 @@ class Trainer:
             self.logger.info("specified checkpoint is not found, training from scratch...")
 
         val_files = glob(os.path.join(DATA_DIR, self.dataset_name, f"test{SOURCE_DOMAIN}", "*"))
-        val_real_batch = tf.nest.map_structure(tf.stop_gradient, tf.map_fn(lambda fname: image_processing(fname, False),
-                                                                           tf.constant(val_files), tf.float32))
+        val_real_batch = tf.map_fn(
+            lambda fname: image_processing(fname, False),
+            tf.constant(val_files), tf.float32, back_prop=False)
         real_batch = next(ds_source)
         while real_batch.shape[0] < SAMPLE_SIZE:
             real_batch = tf.concat((real_batch, next(ds_source)), 0)

@@ -9,12 +9,12 @@ from tensorflow.keras.layers import Conv2D
 from tensorflow.python.keras.losses import MeanAbsoluteError, BinaryCrossentropy
 
 from gan.layers import base_block, residual_block
-from util.contants import IMG_SIZE
+from util.contants import IMG_SIZE, BATCH_SIZE
 from util.utils import gram
 
 
 def generator(base_filters=64):
-    inputs = tf.keras.layers.Input(shape=[IMG_SIZE, IMG_SIZE, 3])
+    inputs = tf.keras.layers.Input(shape=[IMG_SIZE, IMG_SIZE, 3], batch_size=BATCH_SIZE)
     end_kernel_size = 7
     end_padding = (end_kernel_size - 1) // 2
     end_padding = (end_padding, end_padding)

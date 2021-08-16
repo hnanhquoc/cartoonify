@@ -20,7 +20,7 @@ if __name__ == '__main__':
     processed_sample = image_processing("dataset/animeGAN/trainA/6.jpg")
 
     gen_output = g(processed_sample[tf.newaxis, ...])
-    disc_out = d([processed_sample[tf.newaxis, ...], gen_output])
+    disc_out = d(gen_output)
 
     plt.figure(figsize=(10, 8))
     plt.subplot(231)
