@@ -15,11 +15,12 @@ if __name__ == '__main__':
     d.summary()
 
     # Load one sample
-    draw_sample = load("dataset/Shinkai/trainA/7.jpg")
-    draw_sample = resize(draw_sample, IMG_SIZE, IMG_SIZE)
+    draw_sample = load("dataset/animeGAN/trainA/6.jpg")
+    # processed_sample = resize(draw_sample, IMG_SIZE, IMG_SIZE)
+    processed_sample = image_processing("dataset/animeGAN/trainA/6.jpg")
 
-    gen_output = g(draw_sample[tf.newaxis, ...])
-    disc_out = d([draw_sample[tf.newaxis, ...], gen_output])
+    gen_output = g(processed_sample[tf.newaxis, ...])
+    disc_out = d([processed_sample[tf.newaxis, ...], gen_output])
 
     plt.figure(figsize=(10, 8))
     plt.subplot(231)

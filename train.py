@@ -117,13 +117,14 @@ class Trainer:
         self.content_loss_metric(c_loss)
 
     @tf.function
-    def train_step(self, source_images, target_images, smooth_images):
+    def train_step(self, source_images, target_images, smooth_images,
+                   g, d, g_optimizer, d_optimizer):
         with tf.GradientTape() as g_tape, tf.GradientTape() as d_tape:
-            generated_images = generator(source_images)
+            generated_images = g(source_images)
 
-            real_output = discriminator([source_images, target_images])
-            fake_output = discriminator([source_images, generated_images])
-            smooth_out = discriminator([source_images, smooth_images])
+            real_output = d([source_images, target_images])
+            fake_output = d([source_images, generated_images])
+            smooth_out = d([source_images, smooth_images])
             d_real_loss, d_fake_loss, d_smooth_loss, d_total_loss = \
                 self.discriminator_loss(real_output, fake_output, smooth_out)
 
@@ -142,11 +143,11 @@ class Trainer:
                         vgg_generated_images)
                     g_total_loss = g_total_loss + s_loss
 
-        d_grads = d_tape.gradient(d_total_loss, self.d.trainable_variables)
-        g_grads = g_tape.gradient(g_total_loss, self.g.trainable_variables)
+        d_grads = d_tape.gradient(d_total_loss, d.trainable_variables)
+        g_grads = g_tape.gradient(g_total_loss, g.trainable_variables)
 
-        self.d_optimizer.apply_gradients(zip(d_grads, self.d.trainable_variables))
-        self.g_optimizer.apply_gradients(zip(g_grads, self.g.trainable_variables))
+        d_optimizer.apply_gradients(zip(d_grads, d.trainable_variables))
+        g_optimizer.apply_gradients(zip(g_grads, g.trainable_variables))
 
         self.g_total_loss_metric(g_total_loss)
         self.g_adv_loss_metric(g_adv_loss)

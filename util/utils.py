@@ -1,13 +1,14 @@
 # Processing functions using Tensorflow
+import gc
 import os
 from glob import glob
 from itertools import product
-from tensorflow.keras.applications import VGG19
-from tensorflow.keras.layers import Conv2D
 
-import cv2
 import numpy as np
 import tensorflow as tf
+from imageio import imwrite
+from tensorflow.keras.applications import VGG19
+from tensorflow.keras.layers import Conv2D
 
 from util.contants import IMG_SIZE, DATA_DIR
 
@@ -60,25 +61,42 @@ def random_crop(image, height, width):
 
 
 @tf.function
-def image_processing(path, is_train=True):
-    """
-    Preprocess the image.
-    :param path: target image path.
-    :param is_train: is training?
-    :return: a processed image.
-    """
-    x = load(path)
+def image_processing(filename, is_train=True):
     crop_size = IMG_SIZE
+    x = tf.io.read_file(filename)
+    x = tf.image.decode_jpeg(x, channels=3)
     if is_train:
-        sizes = tf.cast(crop_size * tf.random.uniform([2], 0.9, 1.1), tf.int32)
+        sizes = tf.cast(
+            crop_size * tf.random.uniform([2], 0.9, 1.1), tf.int32)
         shape = tf.shape(x)[:2]
         sizes = tf.minimum(sizes, shape)
-        # Adding random noise to the image.
-        x = random_crop(x, sizes[0], sizes[1])
+        x = tf.image.random_crop(x, (sizes[0], sizes[1], 3))
         x = tf.image.random_flip_left_right(x)
-    x = resize(x, crop_size, crop_size)
+    x = tf.image.resize(x, (crop_size, crop_size))
+    img = tf.cast(x, tf.float32) / 127.5 - 1
+    return img
 
-    return normalize(x)
+
+# @tf.function
+# def image_processing(path, is_train=True):
+#     """
+#     Preprocess the image.
+#     :param path: target image path.
+#     :param is_train: is training?
+#     :return: a processed image.
+#     """
+#     x = load(path)
+#     crop_size = IMG_SIZE
+#     if is_train:
+#         sizes = tf.cast(crop_size * tf.random.uniform([2], 0.9, 1.1), tf.int32)
+#         shape = tf.shape(x)[:2]
+#         sizes = tf.minimum(sizes, shape)
+#         # Adding random noise to the image.
+#         x = random_crop(x, sizes[0], sizes[1])
+#         x = tf.image.random_flip_left_right(x)
+#     x = resize(x, crop_size, crop_size)
+#
+#     return normalize(x)
 
 
 def get_dataset(dataset_name, domain, _type, batch_size):
@@ -121,8 +139,8 @@ def save_image(result_dir, batch_x, image_name, nrow=2, ncol=4):
         out_arr[(h * i):(h * (i + 1)), (w * j):(w * (j + 1))] = batch_x[k]
     if not os.path.isdir(result_dir):
         os.makedirs(result_dir)
-    cv2.imwrite(os.path.join(result_dir, image_name), out_arr)
-    # gc.collect()
+    imwrite(os.path.join(result_dir, image_name), out_arr)
+    gc.collect()
     return out_arr
 
 
@@ -140,4 +158,3 @@ def gram(x):
     c = shape_x[3]
     x = tf.reshape(x, [b, -1, c])
     return tf.matmul(tf.transpose(x, [0, 2, 1]), x) / tf.cast((tf.size(x) // b), tf.float32)
-
